@@ -8,17 +8,18 @@ from dotenv import load_dotenv
 LANGUAGES = ['Rust', 'GO', 'Javascript', 'Python', 'C++', 'C#', 'Ruby']
 
 
-def get_vacancy_hh(lang):
+def get_vacancies_hh(lang):
     url = 'https://api.hh.ru/vacancies'
+    moscow_id = 1
     params = {
         'text' : lang,
-        'area' : 1,
+        'area' : moscow_id,
         'period' : 30,
     }
     response = requests.get(url, params=params)
     response.raise_for_status()
-    vacancy = response.json()
-    return vacancy
+    vacancies = response.json()
+    return vacancies
 
 
 def predict_rub_salary(from_salary=None, to_salary=None):
@@ -32,38 +33,37 @@ def predict_rub_salary(from_salary=None, to_salary=None):
         return None
 
 
-def salary_averaging_hh():
+def averageing_salaries_hh():
     results_hh = {}
-    salary_sum = []
-    sum_of_processed_salaries = 0
+    language_salaries = []
     for lang in LANGUAGES:
         for page in count(0):
-            vacancyes = get_vacancy_hh(lang)
-            if page >= vacancyes['pages']-1:
+            vacancies = get_vacancies_hh(lang)
+            if page >= vacancies['pages']-1:
                 break
-            for vacancy in vacancyes['items']:
+            for vacancy in vacancies['items']:
                 salary = vacancy.get('salary')
                 if salary and salary['currency'] == 'RUR':
                     predicted_salary = predict_rub_salary(vacancy['salary'].get('from'), vacancy['salary'].get('to'))
                     if predicted_salary:
-                        salary_sum.append(predicted_salary)
-                        sum_of_processed_salaries += 1
-        vacancyes_found = vacancyes['found']
+                        language_salaries.append(predicted_salary)
+        vacancyes_found = vacancies['found']
         avg_salary = None
-        if salary_sum:
-            avg_salary = int(sum(salary_sum)/len(salary_sum))
+        if language_salaries:
+            avg_salary = int(sum(language_salaries)/len(language_salaries))
         results_hh[lang] = {
             'vacancyes_found' : vacancyes_found,
-            'vacancies_processed' : sum_of_processed_salaries,
+            'vacancies_processed' : len(language_salaries),
             'average_salary' : int(avg_salary),
-            }
+        }
     return results_hh
         
 
-def get_vacancy_sj(lang, page, token):
+def get_vacancies_sj(lang, page, token):
     url = 'https://api.superjob.ru/2.0/vacancies'
+    moscow_id = 4
     params = {
-        'town' : 4,
+        'town' : moscow_id,
         'keyword' : lang,
         'count' : 100,
         'page' : page,
@@ -73,33 +73,31 @@ def get_vacancy_sj(lang, page, token):
     }
     response = requests.get(url, params=params, headers=headers)
     response.raise_for_status
-    vacancy = response.json()
-    return vacancy
+    vacancies = response.json()
+    return vacancies
         
 
-def salary_averaging_sj(token):
+def averageing_salaries_sj(token):
     results_sj = {}
-    salary_sum = []
-    sum_of_processed_salaries = 0
+    language_salaries = []
     for lang in LANGUAGES:
         for page in count(0):
-            vacancyes = get_vacancy_sj(lang, page, token)
-            if not vacancyes['objects']:
+            vacancies = get_vacancies_sj(lang, page, token)
+            if not vacancies['objects']:
                 break            
-            for vacancy in vacancyes['objects']:
+            for vacancy in vacancies['objects']:
                 predicted_salary = predict_rub_salary(vacancy['payment_from'], vacancy['payment_to'])
                 if predicted_salary:
-                        salary_sum.append(predicted_salary)
-                        sum_of_processed_salaries += 1
-        vacancyes_found = vacancyes['total']
+                        language_salaries.append(predicted_salary)
+        vacancyes_found = vacancies['total']
         avg_salary = None
-        if salary_sum:
-            avg_salary = int(sum(salary_sum)/len(salary_sum))
+        if language_salaries:
+            avg_salary = int(sum(language_salaries)/len(language_salaries))
         results_sj[lang] = {
             'vacancyes_found' : vacancyes_found,
-            'vacancies_processed' : sum_of_processed_salaries,
+            'vacancies_processed' : len(language_salaries),
             'average_salary' : avg_salary,
-            }
+        }
     return results_sj
         
 
@@ -116,10 +114,10 @@ def create_table(stats):
 def main():
     load_dotenv()
     token = os.environ['SJ_TOKEN']
-    sj_salaryes = salary_averaging_sj(token)
-    hh_salaryes = salary_averaging_hh()
-    print(create_table(sj_salaryes))
-    print(create_table(hh_salaryes))
+    sj_salaries = averageing_salaries_sj(token)
+    hh_salaries = averageing_salaries_hh()
+    print(create_table(sj_salaries))
+    print(create_table(hh_salaries))
 
 
 if __name__ == '__main__':
